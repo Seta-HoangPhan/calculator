@@ -21,6 +21,16 @@ export enum Action {
 
 export type KeyBoard = Parenthesis | Operator | number | Action;
 
+export enum TokenType {
+  Number = "number",
+  MathOperator = "mathOperator",
+}
+
+export interface Token {
+  type: TokenType | Parenthesis;
+  value: string;
+}
+
 export interface Input {
   key: KeyBoard;
   label: ReactNode;

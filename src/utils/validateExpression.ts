@@ -1,4 +1,6 @@
-import { Operator, Parenthesis } from "../types";
+import * as errMsg from "../constants/error";
+import { Parenthesis, TokenType, type Token } from "../types";
+import { convertTokens } from "./convertTokens";
 
 interface Validate {
   isValid: boolean;
@@ -6,9 +8,8 @@ interface Validate {
   err?: string;
 }
 
-export const validateExpression = (val: string): Validate => {
+export const validateExpressionString = (val: string): Validate => {
   const tokens = convertTokens(val);
-  console.log("check12 convert", tokens);
 
   if (typeof tokens === "string") {
     return {
@@ -17,7 +18,7 @@ export const validateExpression = (val: string): Validate => {
     };
   }
 
-  const result = validate(tokens);
+  const result = validateTokens(tokens);
   if (typeof result === "string") return { isValid: false, err: result };
 
   return {
@@ -26,97 +27,7 @@ export const validateExpression = (val: string): Validate => {
   };
 };
 
-interface Token {
-  type: "number" | "mathOperator" | Parenthesis;
-  value: string;
-}
-
-const mathOperators: string[] = [
-  Operator.Plus,
-  Operator.Times,
-  Operator.Devided,
-];
-
-const isMathOperatorWithoutMinus = (val: string) => mathOperators.includes(val);
-
-const convertTokens = (val: string): Token[] | string => {
-  const tokens: Token[] = [];
-  let i = 0;
-
-  while (i < val.length) {
-    const char = val[i];
-
-    if (char === Parenthesis.Open) {
-      tokens.push({ type: Parenthesis.Open, value: char });
-    }
-
-    if (char === Parenthesis.Close) {
-      tokens.push({ type: Parenthesis.Close, value: char });
-    }
-
-    if (isMathOperatorWithoutMinus(char)) {
-      tokens.push({ type: "mathOperator", value: char });
-    }
-
-    if (char === Operator.Minus) {
-      let minusCount = 1;
-      while (val[i + 1] === Operator.Minus) {
-        minusCount++;
-        ++i;
-      }
-
-      tokens.push({
-        type: "mathOperator",
-        value: minusCount % 2 === 0 ? Operator.Plus : Operator.Minus,
-      });
-    }
-
-    const decimalRegex = /^[0-9.%]$/;
-    if (decimalRegex.test(char)) {
-      let num = char;
-      while (decimalRegex.test(val[i + 1])) {
-        num += val[++i];
-      }
-
-      if (num.charAt(num.length - 1) === "%") {
-        num = (Number(num.slice(0, -1)) / 100).toString();
-      }
-
-      if (isNaN(Number(num))) {
-        return "invalid number";
-      }
-
-      if (num.charAt(0) === ".") {
-        num = `0${num}`;
-      }
-
-      if (num.charAt(num.length - 1) === ".") {
-        num = num.slice(0, -1);
-      }
-
-      tokens.push({ type: "number", value: num });
-    }
-
-    i++;
-  }
-
-  if (tokens.length > 1 && tokens[1].type === "number") {
-    if (tokens[0].value === Operator.Minus) {
-      tokens.splice(0, 2, {
-        type: "number",
-        value: `-${tokens[1].value}`,
-      });
-    }
-
-    if (tokens[0].value === Operator.Plus) {
-      tokens.shift();
-    }
-  }
-
-  return tokens;
-};
-
-const validate = (tokens: Token[]) => {
+const validateTokens = (tokens: Token[]) => {
   const copyTokens = [...tokens];
   const OpenStack: number[] = [];
 
@@ -130,91 +41,51 @@ const validate = (tokens: Token[]) => {
     if (token.type === Parenthesis.Close) {
       const openIndex = OpenStack.pop();
       if (openIndex === undefined) {
-        return "invalid expression";
+        return errMsg.REDUNDANT_CLOSE;
       }
 
-      const result = calculateExpression(copyTokens.slice(openIndex + 1, i));
+      const result = calExpressionTokens(copyTokens.slice(openIndex + 1, i));
       if (result === null) {
-        return "invalid expression";
+        return errMsg.INVALID_EXPRESSION;
       }
 
       copyTokens.splice(openIndex, i - openIndex + 1, {
-        type: "number",
+        type: TokenType.Number,
         value: result.toString(),
       });
+
       i = openIndex;
     }
-
-    const prevToken = copyTokens[i - 1];
-    const nextToken = copyTokens[i + 1];
-
-    if (token.type === "number") {
-      if (
-        (prevToken &&
-          (prevToken.type === "number" ||
-            prevToken.type === Parenthesis.Close)) ||
-        (nextToken &&
-          (nextToken.type === "number" || nextToken.type === Parenthesis.Open))
-      ) {
-        return "invalid expression";
-      }
-    }
-
-    // if (token.type === "mathOperator") {
-    //   const isMinus = token.value === Operator.Minus;
-
-    //   if (
-    //     !nextToken ||
-    //     nextToken.type === Parenthesis.Close ||
-    //     nextToken.type === "mathOperator"
-    //   ) {
-    //     return "invalid expression";
-    //   }
-
-    //   if (
-    //     !isMinus &&
-    //     (!prevToken ||
-    //       prevToken.type === "mathOperator" ||
-    //       prevToken.type === Parenthesis.Open)
-    //   ) {
-    //     return "invalid expression";
-    //   }
-    // }
   }
 
   if (OpenStack.length > 0) {
-    return "invalid expression";
+    return errMsg.REDUNDANT_OPEN;
   }
 
-  const result = calculateExpression(copyTokens);
+  const result = calExpressionTokens(copyTokens);
   if (result === null) {
-    return "invalid expression";
+    return errMsg.INVALID_EXPRESSION;
   }
 
   return result;
 };
 
-const calculateExpression = (tokens: Token[]) => {
+const calExpressionTokens = (tokens: Token[]) => {
   const length = tokens.length;
   if (length === 0) return 0;
 
   if (length === 1) {
-    return tokens[0].type === "mathOperator" ? null : Number(tokens[0].value);
-  }
-
-  if (tokens[0].value === Operator.Minus && tokens[1].type === "number") {
-    tokens.splice(0, 2, {
-      type: "number",
-      value: `-${tokens}`,
-    });
+    return tokens[0].type === TokenType.MathOperator
+      ? null
+      : Number(tokens[0].value);
   }
 
   for (let i = 0; i <= length - 1; i++) {
     const token = tokens[i];
     const isInvalid =
-      (i === length - 1 && token.type === "mathOperator") ||
-      (i % 2 === 0 && token.type === "mathOperator") ||
-      (i % 2 === 1 && token.type === "number");
+      (i === length - 1 && token.type === TokenType.MathOperator) ||
+      (i % 2 === 0 && token.type === TokenType.MathOperator) ||
+      (i % 2 === 1 && token.type === TokenType.Number);
 
     if (isInvalid) {
       return null;

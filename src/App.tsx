@@ -2,11 +2,12 @@ import { faEquals } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Button, Divider, Grid, InputBase } from "@mui/material";
 import { useRef, useState, type ChangeEvent } from "react";
+import { v4 as uuid } from "uuid";
 import "./App.css";
 import { InputList } from "./constants";
 import { Action, type History, type KeyBoard } from "./types";
 import { convertOperator, reverseOperator } from "./utils/convertOperator";
-import { validateExpression } from "./utils/validateExpression";
+import { validateExpressionString } from "./utils/validateExpression";
 
 function App() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -21,7 +22,7 @@ function App() {
   const handleClickEqual = () => {
     const convertVal = reverseOperator(inputVal);
 
-    const { isValid, result, err } = validateExpression(convertVal);
+    const { isValid, result, err } = validateExpressionString(convertVal);
     if (!isValid || !result) {
       setErr(err);
       return;
@@ -30,6 +31,7 @@ function App() {
     setHistory((prev) => [...prev, { expression: inputVal, result }]);
     setInputVal(result);
     setIsResult(true);
+    setErr(undefined);
   };
 
   const handleReplaceOperator = (val: string, crrCaret: number) => {
@@ -88,7 +90,7 @@ function App() {
       <div className="display">
         <div className="history">
           {history.map(({ expression, result }) => (
-            <>
+            <div key={`${expression}-${uuid()}`}>
               <div className="history-item">
                 <span className="history-item__expression">{expression}</span>
                 <span className="history-item__equal-icon">
@@ -97,7 +99,7 @@ function App() {
                 <span className="history-item__result">{result}</span>
               </div>
               <Divider />
-            </>
+            </div>
           ))}
         </div>
         <div className="input">
