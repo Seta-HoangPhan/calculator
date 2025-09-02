@@ -7,3 +7,6 @@ This project is a clone of a simple calculator that can evaluate basic mathemati
 ```js
 npm run dev
 ```
+
+## Screenshot
+<img src="./public/app-screenshot.png" alt="Calculator Screenshot" height="500">
